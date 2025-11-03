@@ -65,3 +65,41 @@ def simulate_trip(trip_type = 'city', min_seconds=30, max_seconds=180):
         'acceleration': acceleration,
         'tilt': tilt,
     })
+
+# Build a dataset of random trips
+def simulate_dataset():
+    # New randomness for every run
+    np.random.seed(None)
+
+    # Pick a random number of trips: 2..5
+    n_trips = int(np.random.randint(2, 6))
+
+    trips = []
+    for trip_id in range(1, n_trips + 1):
+        # Choose trip type randomly each time (50/50 city vs highway)
+        trip_type = np.random.choice(['city', 'highway'])
+
+        # Make one trip
+        trip = simulate_trip(trip_type)
+
+        # Tap which trip each row belongs to (1..n_trips)
+        trip = trip.assign(trip_id=trip_id)
+
+        # Collect it
+        trips.append(trip)
+
+    # Stack all trips into one table
+    data = pd.concat(trips, ignore_index=True)
+
+    # Make a continuous timeline across trips
+    # Compute how long each trip is, then cumulative starting offsets
+    lengths = [len(t) for t in trips]
+    offsets = np.cumsum([0] + lengths[:-1])
+
+    # Map trip_id -> its starting offset, then add to per-trip time
+    offset_map = {i + 1: offsets[i] for i in range(n_trips)}
+    data['global_time'] = data['time'] + data['trip_id'].map(offset_map)
+
+    return data
+
+
