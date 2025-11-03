@@ -131,6 +131,74 @@ def save_with_hash(df: pd.DataFrame, path: Path):
     # This lets you check later if the file was modified or corrupted
     print("SHA-256:", sha256_file(path))
 
+# Plots driving speed over time with both km/h (left axis) and mph (right axis), highlighting high-speed points above set thresholds
+def plot_speed_dual_units(df: pd.DataFrame):
+    # Create a new figure (12x6 inches) and the primary y-axis (left side)
+    fig, ax_left = plt.subplots(figsize=(12, 6))
+
+    # Plot speed in km/h on the left y-axis against the continuous time axis
+    ax_left.plot(df['global_time'], df['speed_kmh'], label='Speed (km/h)')
+    ax_left.set_xlabel('Global Time (seconds)')     # x-axis label
+    ax_left.set_ylabel('Speed (km/h)')              # left y-axis label
+    ax_left.grid(True, alpha=0.3)            # light grid for readability
+
+    # Create a secondary y-axis that shares the same x-axis (right side)
+    ax_right = ax_left.twinx()
+
+    # Plot speed in mph on the right y-axis (dashed to distinguish from km/h)
+    ax_right.plot(df['global_time'], df['speed_mph'], linestyle='--', label='Speed (mph)')
+    ax_right.set_ylabel('Speed (mph)') # right y-axis label
+
+    # Find rows where speed exceeds the high-speed thresholds (km/h and mph)
+    hi_kmh = df[df['speed_kmh'] >= HIGH_KMH]
+    hi_mph = df[df['speed_mph'] >= HIGH_MPH]
+
+    # If there are high-speed points in km/h, mark them with red dots on the left axis
+    if not hi_kmh.empty:
+        ax_left.scatter(
+            hi_kmh['global_time'], hi_kmh['speed_kmh'],
+            color='red', s=14, label=f'≥ {HIGH_KMH} km/h'
+        )
+
+    # If there are high-speed points in mph, mark them with purple dots on the right axis
+    if not hi_mph.empty:
+        ax_right.scatter(
+            hi_mph['global_time'], hi_mph['speed_mph'],
+            color='purple', s=14, label=f'≥ {HIGH_MPH} mph'
+        )
+
+    # Each axis has its own legend entries, grab them from both axes
+    lines_l, labels_l = ax_left.get_legend_handles_labels()
+    lines_r, labels_r = ax_right.get_legend_handles_labels()
+
+    # Combines into a single legend shown on the left axis
+    ax_left.legend(lines_l, lines_r, labels_l + labels_r, loc='upper left')
+
+    # Add a title, fix layout so labels don’t get cut off, and show the plot window
+    plt.title('Driving Speed Over Time (km/h & mph)')
+    plt.tight_layout()
+    plt.show(block=True)
+
+# Plots any single time-based variable (like acceleration or tilt) against global time
+def plot_series(df: pd.DataFrame, column: str, ylabel: str, title: str)
+    # Create a single single-axis figure for a generic time-series column
+    plt.figure(figsize=(12, 6))
+
+    # Plot the specified column (acceleration or tilt) versus global time
+    plt.plot(df['global_time'], df[column], label=ylabel)
+
+    # Axis labels and title
+    plt.xlabel('Global Time (seconds)')
+    plt.ylabel(ylabel)
+    plt.title(title)
+
+    # Light grid and a legend using the provided label
+    plt.grid(True)
+    plt.legend()
+
+    # Adjust layout and display the plot window (blocks until closed)
+    plt.tight_layout()
+    plt.show(block=True)
 
 
 
