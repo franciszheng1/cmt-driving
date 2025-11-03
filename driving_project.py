@@ -1,4 +1,8 @@
 import sys                      # for detecting operating system and exit
+import os                       # for environment variables and file operations
+import stat                     # for POSIX file permission flags
+import json, time               # for writing/reading an audit log with timestamps
+import base64, hmac             # for HMAC signatures (authenticity)
 import pandas as pd             # for handling tabular data
 import numpy as np              # for random number generation
 import hashlib                  # for cybersecurity (hashing)
@@ -13,10 +17,11 @@ matplotlib.use("MacOSX" if sys.platform == "darwin" else "TkAgg")
 # Import pyplot after choosing the backend
 import matplotlib.pyplot as plt
 
-# Constants for unit conversions and thresholds
-KMH_TO_MPH = 0.621371
+# Global constants for units and thresholds
+KMH_TO_MPH = 0.621371 # conversation factor (km/h -> mph)
 HIGH_KMH = 120 # km/h threshold
 HIGH_MPH = 75 # mph threshold (approximately 120 km/h)
+AUDIT_LOG = Path("audit.log") # append-only audit log file (hash-chained)
 
 # Define a function named 'authenticate' that checks the user's password
 # The default correct password is set to "secure123"
@@ -42,7 +47,7 @@ def simulate_trip(trip_type = 'city', min_seconds=30, max_seconds=180):
     time = np.arange(duration)
 
     # Depending on the type of trip, generate different driving patterns
-    if trip_type == 'city': # use == for comparison
+    if trip_type == "city": # use == for comparison
         # city: slower and more variable: clip to a realistic range
         speed_kmh = np.clip(np.random.normal(40, 10, duration), 0, 60)
         acceleration = np.random.normal(0, 2, duration)
@@ -58,16 +63,16 @@ def simulate_trip(trip_type = 'city', min_seconds=30, max_seconds=180):
 
     # Returns a table (DataFrame) with all columns
     return pd.DataFrame({
-        'time': time,                   # seconds within this trip
-        'trip_type': trip_type,         # 'city' or 'highway'
-        'speed_kmh': speed_kmh,         # speed in km/h
-        'speed_mph': speed_mph,         # speed in mph
-        'acceleration': acceleration,
-        'tilt': tilt,
+        "time": time,                   # seconds within this trip
+        "trip_type": trip_type,         # "city" or "highway"
+        "speed_kmh": speed_kmh,         # speed in km/h
+        "speed_mph": speed_mph,         # speed in mph
+        "acceleration": acceleration,
+        "tilt": tilt,
     })
 
 # Build a dataset of random trips
-def simulate_dataset():
+def simulate_dataset() -> pd.DataFrame:
     # New randomness for every run
     np.random.seed(None)
 
@@ -77,7 +82,7 @@ def simulate_dataset():
     trips = []
     for trip_id in range(1, n_trips + 1):
         # Choose trip type randomly each time (50/50 city vs highway)
-        trip_type = np.random.choice(['city', 'highway'])
+        trip_type = np.random.choice(["city", "highway"])
 
         # Make one trip
         trip = simulate_trip(trip_type)
@@ -98,7 +103,7 @@ def simulate_dataset():
 
     # Map trip_id -> its starting offset, then add to per-trip time
     offset_map = {i + 1: offsets[i] for i in range(n_trips)}
-    data['global_time'] = data['time'] + data['trip_id'].map(offset_map)
+    data["lobal_time"] = data["time"] + data["trip_id"].map(offset_map)
 
     return data
 
@@ -109,10 +114,10 @@ def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
 
     # Open the file in binary mode, so we can read raw bytes
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         # Read the file in chunks of 8 KB (8192 bytes)
         # This prevents memory issues for large files
-        for chunk in iter(lambda: f.read(8192), b''):
+        for chunk in iter(lambda: f.read(8192), b""):
             # Update the hash with each chunk of data
             h.update(chunk)
 
@@ -137,34 +142,34 @@ def plot_speed_dual_units(df: pd.DataFrame):
     fig, ax_left = plt.subplots(figsize=(12, 6))
 
     # Plot speed in km/h on the left y-axis against the continuous time axis
-    ax_left.plot(df['global_time'], df['speed_kmh'], label='Speed (km/h)')
-    ax_left.set_xlabel('Global Time (seconds)')     # x-axis label
-    ax_left.set_ylabel('Speed (km/h)')              # left y-axis label
+    ax_left.plot(df["global_time"], df["speed_kmh"], label="Speed (km/h)")
+    ax_left.set_xlabel("Global Time (seconds)")     # x-axis label
+    ax_left.set_ylabel("Speed (km/h)")              # left y-axis label
     ax_left.grid(True, alpha=0.3)            # light grid for readability
 
     # Create a secondary y-axis that shares the same x-axis (right side)
     ax_right = ax_left.twinx()
 
     # Plot speed in mph on the right y-axis (dashed to distinguish from km/h)
-    ax_right.plot(df['global_time'], df['speed_mph'], linestyle='--', label='Speed (mph)')
-    ax_right.set_ylabel('Speed (mph)') # right y-axis label
+    ax_right.plot(df["global_time"], df["speed_mph"], linestyle=""--"", label="Speed (mph)")
+    ax_right.set_ylabel("Speed (mph)") # right y-axis label
 
     # Find rows where speed exceeds the high-speed thresholds (km/h and mph)
-    hi_kmh = df[df['speed_kmh'] >= HIGH_KMH]
-    hi_mph = df[df['speed_mph'] >= HIGH_MPH]
+    hi_kmh = df[df["speed_kmh"] >= HIGH_KMH]
+    hi_mph = df[df["speed_mph"] >= HIGH_MPH]
 
     # If there are high-speed points in km/h, mark them with red dots on the left axis
     if not hi_kmh.empty:
         ax_left.scatter(
-            hi_kmh['global_time'], hi_kmh['speed_kmh'],
-            color='red', s=14, label=f'≥ {HIGH_KMH} km/h'
+            hi_kmh["global_time"], hi_kmh["speed_kmh"],
+            color="red", s=14, label=f"≥ {HIGH_KMH} km/h"
         )
 
     # If there are high-speed points in mph, mark them with purple dots on the right axis
     if not hi_mph.empty:
         ax_right.scatter(
-            hi_mph['global_time'], hi_mph['speed_mph'],
-            color='purple', s=14, label=f'≥ {HIGH_MPH} mph'
+            hi_mph["global_time"], hi_mph["speed_mph"],
+            color="purple", s=14, label=f"≥ {HIGH_MPH} mph"
         )
 
     # Each axis has its own legend entries, grab them from both axes
@@ -172,10 +177,10 @@ def plot_speed_dual_units(df: pd.DataFrame):
     lines_r, labels_r = ax_right.get_legend_handles_labels()
 
     # Combines into a single legend shown on the left axis
-    ax_left.legend(lines_l + lines_r, labels_l + labels_r, loc='upper left')
+    ax_left.legend(lines_l + lines_r, labels_l + labels_r, loc="upper left")
 
     # Add a title, fix layout so labels don’t get cut off, and show the plot window
-    plt.title('Driving Speed Over Time (km/h & mph)')
+    plt.title("Driving Speed Over Time (km/h & mph)")
     plt.tight_layout()
     plt.show(block=True)
 
@@ -185,10 +190,10 @@ def plot_series(df: pd.DataFrame, column: str, ylabel: str, title: str):
     plt.figure(figsize=(12, 6))
 
     # Plot the specified column (acceleration or tilt) versus global time
-    plt.plot(df['global_time'], df[column], label=ylabel)
+    plt.plot(df["global_time"], df[column], label=ylabel)
 
     # Axis labels and title
-    plt.xlabel('Global Time (seconds)')
+    plt.xlabel("Global Time (seconds)")
     plt.ylabel(ylabel)
     plt.title(title)
 
