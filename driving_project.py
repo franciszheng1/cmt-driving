@@ -82,7 +82,7 @@ def simulate_dataset():
         # Make one trip
         trip = simulate_trip(trip_type)
 
-        # Tap which trip each row belongs to (1..n_trips)
+        # Tap which trip each row belongs to (1 . . n_trips)
         trip = trip.assign(trip_id=trip_id)
 
         # Collect it
@@ -118,4 +118,19 @@ def sha256_file(path: Path) -> str:
 
     # Return the final hash as a 64-character hexadecimal string
     return h.hexdigest()
+
+# Saves a DataFrame to CSV and prints its SHA-256 hash to confirm the file's authenticity
+def save_with_hash(df: pd.DataFrame, path: Path):
+    # Save the DataFrame to a CSV file without including row indexes
+    df.to.csv(path, index=False)
+
+    # Print to file name and how many rows were saved
+    print(f"Saved dataset: {path} (rows: {len(df)})")
+
+    # Compute and print the file's SHA-256 fingerprint for verification
+    # This lets you check later if the file was modified or corrupted
+    print("SHA-256:", sha256_file(path))
+
+
+
 
