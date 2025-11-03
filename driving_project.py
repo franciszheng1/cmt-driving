@@ -103,3 +103,19 @@ def simulate_dataset():
     return data
 
 
+# Calculates and returns the SHA_256 hash (fingerprint) of a file for integrity verification
+def sha256_file(path: Path) -> str:
+    # Create a new SHA-256 hashing object
+    h = hashlib.sha256()
+
+    # Open the file in binary mode, so we can read raw bytes
+    with open(path, 'rb') as f:
+        # Read the file in chunks of 8 KB (8192 bytes)
+        # This prevents memory issues for large files
+        for chunk in iter(lambda: f.read(8192), b''):
+            # Update the hash with each chunk of data
+            h.update(chunk)
+
+    # Return the final hash as a 64-character hexadecimal string
+    return h.hexdigest()
+
