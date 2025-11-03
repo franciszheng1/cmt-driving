@@ -122,7 +122,7 @@ def sha256_file(path: Path) -> str:
 # Saves a DataFrame to CSV and prints its SHA-256 hash to confirm the file's authenticity
 def save_with_hash(df: pd.DataFrame, path: Path):
     # Save the DataFrame to a CSV file without including row indexes
-    df.to.csv(path, index=False)
+    df.to_csv(path, index=False)
 
     # Print to file name and how many rows were saved
     print(f"Saved dataset: {path} (rows: {len(df)})")
@@ -172,7 +172,7 @@ def plot_speed_dual_units(df: pd.DataFrame):
     lines_r, labels_r = ax_right.get_legend_handles_labels()
 
     # Combines into a single legend shown on the left axis
-    ax_left.legend(lines_l, lines_r, labels_l + labels_r, loc='upper left')
+    ax_left.legend(lines_l + lines_r, labels_l + labels_r, loc='upper left')
 
     # Add a title, fix layout so labels don’t get cut off, and show the plot window
     plt.title('Driving Speed Over Time (km/h & mph)')
@@ -180,7 +180,7 @@ def plot_speed_dual_units(df: pd.DataFrame):
     plt.show(block=True)
 
 # Plots any single time-based variable (like acceleration or tilt) against global time
-def plot_series(df: pd.DataFrame, column: str, ylabel: str, title: str)
+def plot_series(df: pd.DataFrame, column: str, ylabel: str, title: str):
     # Create a single single-axis figure for a generic time-series column
     plt.figure(figsize=(12, 6))
 
