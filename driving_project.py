@@ -42,8 +42,26 @@ def simulate_trip(trip_type = 'city', min_seconds=30, max_seconds=180):
     time = np.arange(duration)
 
     # Depending on the type of trip, generate different driving patterns
-    if trip_type = 'city':
-        # This is because city driving is slower and more variable
-        # np.random.normal(mean, std, size) creates random numbers around a mean
+    if trip_type == 'city': # use == for comparison
+        # city: slower and more variable: clip to a realistic range
+        speed_kmh = np.clip(np.random.normal(40, 10, duration), 0, 60)
+        acceleration = np.random.normal(0, 2, duration)
+        tilt = np.random.normal(0, 5, duration)
+    else:
+        # highway: faster and smoother: clip to a realistic range
+        speed_kmh = np.clip(np.random.normal(100, 15, duration), 60, 130)
+        acceleration = np.random.normal(0, 1, duration)
+        tilt = np.random.normal(0, 2, duration)
 
+    # Computes mph from km/h so the CSV file always have both units
+    speed_mph = speed_kmh * KMH_TO_MPH
 
+    # Returns a table (DataFrame) with all columns
+    return pd.DataFrame({
+        'time': time,                   # seconds within this trip
+        'trip_type': trip_type,         # 'city' or 'highway'
+        'speed_kmh': speed_kmh,         # speed in km/h
+        'speed_mph': speed_mph,         # speed in mph
+        'acceleration': acceleration,
+        'tilt': tilt,
+    })
