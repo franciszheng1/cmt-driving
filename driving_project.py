@@ -177,6 +177,23 @@ def verify_hmac_file(path: Path, sig_b64: str, key: bytes) -> bool:
     # Compares the real signature to the expected one using a safe equality check (prevents timing attacks)
     return hmac.compare_digest(expected, sig_b64)
 
+# Returns the previous entry's hash from the audit log, or "GENESIS" if no log/entries exist
+def _last_log_hash() -> str:
+    # If the log file doesn't exist, we're at the start of the chain
+    if not AUDIT_LOG.exists():
+        return "GENESIS"
+    # Read all non-empty lines from the log so we can inspect the last entry
+    lines = [ln for ln in AUDIT_LOG.read_text(encoding="utf-8").splitlines() if ln.strip()]
+    # If the file is empty, we're still at the start of the chain
+    if not lines:
+        return "GENESIS"
+    try:
+        # Parse the last JSON record and return its entry hash to chain the next one
+        return json.loads(lines[-1]).get("entry_hash", "GENESIS")
+    except Exception:
+        # If parsing fails, treat it like we're at the start to avoid crashing
+        return "GENESIS"
+
 # Plots driving speed over time with both km/h (left axis) and mph (right axis), highlighting high-speed points above set thresholds
 def plot_speed_dual_units(df: pd.DataFrame):
     # Create a new figure (12x6 inches) and the primary y-axis (left side)
