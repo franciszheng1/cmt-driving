@@ -249,6 +249,25 @@ def verify_audit_log() -> bool:
     print("Audit log OK (chain intact)." if ok else "Audit log FAILED.")
     return ok
 
+# Makes a safer copy of the data to share by hiding exact times and slightly blurring speeds
+def export_privacy_copy(df: pd.DataFrame, out_path: Path):
+    # Make a copy so we don't change the original data
+    pub = df.copy()
+    # Group time into 5-second chunks so exact seconds aren't shown
+    pub["time_bucket_s"] = (pub["global_time"] // 5) * 5
+    # Create tiny random bumps we'll add to speeds (about +- 0.5 mph)
+    noise = np.random.normal(0, 0.5, len(pub)) # small, harmless wiggle
+    # Make a public mph speed: real speed + tiny noise, rounded to 1 decimal
+    pub["speed_mph_public"] = (pub["speed_mph"] + noise).round(1)
+    # Make a public km/h speed: same idea as above, but in km/h
+    pub["speed_kmh_public"] = (pub["speed_kmh"] + noise / KMH_TO_MPH).round(1)
+    # Keep only the simple, non-sensitive columns for sharing
+    pub = pub[["trip_id", "time_bucket_s", "speed_kmh_public", "speed_mph_public"]]
+    # Save this privacy-safe table to a CSV file (no row numbers)
+    pub.to_csv(out_path, index=False)
+    # Let the user know where the safe file was written
+    print(f"Privacy export written: {out_path}")
+
 # Plots driving speed over time with both km/h (left axis) and mph (right axis), highlighting high-speed points above set thresholds
 def plot_speed_dual_units(df: pd.DataFrame):
     # Create a new figure (12x6 inches) and the primary y-axis (left side)
