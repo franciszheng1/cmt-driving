@@ -170,6 +170,13 @@ def hmac_sha256_file(path: Path, key: bytes) -> str:
     # Convert the final HMAC (binary) into a Base64 text string and return it
     return base64.b64encode(mac.digest()).decode("utf-8")
 
+# Checks if a file’s digital signature matches its expected HMAC-SHA256 signature to confirm it hasn’t been tampered with
+def verify_hmac_file(path: Path, sig_b64: str, key: bytes) -> bool:
+    # Recreate the expected HMAC signature using the same key and file
+    expected = hmac_sha256_file(path, key)
+    # Compares the real signature to the expected one using a safe equality check (prevents timing attacks)
+    return hmac.compare_digest(expected, sig_b64)
+
 # Plots driving speed over time with both km/h (left axis) and mph (right axis), highlighting high-speed points above set thresholds
 def plot_speed_dual_units(df: pd.DataFrame):
     # Create a new figure (12x6 inches) and the primary y-axis (left side)
