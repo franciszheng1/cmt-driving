@@ -212,6 +212,43 @@ def audit_event(event: str, details: dict):
     with open(AUDIT_LOG, "a", encoding="utf-8" as f:
         f.write(json.dumps(record) + "\n")
 
+# Rebuilds the chain from start to finish to confirm no entries were edited or removed
+def verify_audit_log() -> bool:
+    # If there's no audit.log file, say so and treat it as nothing to verify (return True)
+    if not AUDIT_LOG.exists():
+        print("Audit log: none found")
+        return True
+    # ok tracks whether the chain is still valid: prev holds the "previous hash" we expect ("GENESIS" for the first line)
+    ok, prev = True, "GENESIS"
+    # Read the whole file as text, split into lines, and loop through them with a 1-based line number
+    for i, ln in enumerate(AUDIT_LOG.read_text(encoding="utf-8").splitlines(), start=1):
+        # Ignore blank lines so they don't count as broken entries
+        if not ln.strip():
+            continue
+        # Turn the JSON text on this line into a Python dict (rec)
+        rec = json.loads(ln)
+
+        # Pull out the timestamp and event name we stored when writing this entry
+        ts, ev = rec["ts"], rec["event"]
+
+        # Recreate the exact JSON string for the details dict (sorted keys to match the write-time format)
+        det = json.dumps(rec["details"], sort_keys=True)
+
+        # Recompute what this line's hash should be using (previous hash + ts + event + details), then SHA-256
+        expected = hashlib.sha256((prev + ts + ev + det).encode("utf-8")).hexdigest()
+
+        # If the stored hash in the file doesn't match the recomputed expected one, the log was altered
+        if rec.get("entry_hash") != expected:
+            print(f"Audit chain broken at line {i}")
+            ok = False
+            break
+        # Advance the chain by setting prev to this entry's hash
+        prev = rec["entry_hash"]
+
+    # Say whether the chain stayed intact for all lines, and return True/False accordingly
+    print("Audit log OK (chain intact)." if ok else "Audit log FAILED.")
+    return ok
+
 # Plots driving speed over time with both km/h (left axis) and mph (right axis), highlighting high-speed points above set thresholds
 def plot_speed_dual_units(df: pd.DataFrame):
     # Create a new figure (12x6 inches) and the primary y-axis (left side)
