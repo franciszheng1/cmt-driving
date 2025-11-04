@@ -136,6 +136,27 @@ def save_with_hash(df: pd.DataFrame, path: Path):
     # This lets you check later if the file was modified or corrupted
     print("SHA-256:", sha256_file(path))
 
+# Returns a 32-byte secret key: prefer SECRET_KEY_HEX from the environment, else generate a random key for this run
+def load_or_generate_secret_key() -> bytes:
+    # Read the signing key from the environment (expected as a 64-character hex string), use empty string if not set
+    env_hex = os.environ.get("SECRET_KEY_HEX", "").strip()
+
+    # If an environment value exists, try to parse it as hex and ensure it's at least 32 bytes
+    if env_hex:
+        try:
+            # Convert the hex string to raw bytes (raises ValueError if not valid hex)
+            key = bytes.fromhex(env_hex)
+
+            # If the key is long enough, return exactly 32 bytes (truncate if longer)
+            if len(key) >= 32:
+                return key[:32]
+        except ValueError:
+            # If the value isn't valid hex, ignore it and fall back to a random key below
+            pass
+
+        # If no valid env key is available, create a new random 32-byte key (for this run only)
+        return os.urandom(32)
+
 # Plots driving speed over time with both km/h (left axis) and mph (right axis), highlighting high-speed points above set thresholds
 def plot_speed_dual_units(df: pd.DataFrame):
     # Create a new figure (12x6 inches) and the primary y-axis (left side)
