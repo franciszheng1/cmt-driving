@@ -157,6 +157,19 @@ def load_or_generate_secret_key() -> bytes:
         # If no valid env key is available, create a new random 32-byte key (for this run only)
         return os.urandom(32)
 
+# Creates a unique Base64 HMAC-SHA256 signature for a file using a secret key to prove the file's authenticity and integrity
+def hmac_sha256_file(path: Path, key: bytes) -> str:
+    # Start an HMAC-SHA256 object using the secret key
+    mac = hmac.new(key, digestmod=hashlib.sha256)
+    # Open the file in binary mode so the exact file bytes can be read
+    with open(path, "rb") as f:
+        # Read the file in chunks of 8KB to handle large files efficiently
+        for chunk in iter(lambda: f.read(8192), b""):
+            # Update the HMAC with each chunk of data read from the file
+            mac.update(chunk)
+    # Convert the final HMAC (binary) into a Base64 text string and return it
+    return base64.b64encode(mac.digest()).decode("utf-8")
+
 # Plots driving speed over time with both km/h (left axis) and mph (right axis), highlighting high-speed points above set thresholds
 def plot_speed_dual_units(df: pd.DataFrame):
     # Create a new figure (12x6 inches) and the primary y-axis (left side)
