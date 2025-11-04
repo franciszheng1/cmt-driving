@@ -1,6 +1,7 @@
 import sys                      # for detecting operating system and exit
 import os                       # for environment variables and file operations
 import stat                     # for POSIX file permission flags
+import subprocess               # run the 'icacls' command on Windows
 import json, time               # for writing/reading an audit log with timestamps
 import base64, hmac             # for HMAC signatures (authenticity)
 import pandas as pd             # for handling tabular data
@@ -267,6 +268,32 @@ def export_privacy_copy(df: pd.DataFrame, out_path: Path):
     pub.to_csv(out_path, index=False)
     # Let the user know where the safe file was written
     print(f"Privacy export written: {out_path}")
+
+# Restricts a file’s access so only the current user can read and write it (uses chmod 0600 on Mac/Linux, and icacls on Windows)
+def set_strict_perms(path: Path):
+    try:
+        if sys.platform == "win32":
+        # On Windows, find the current logged-in user name
+        user = getpass.getuser()
+
+        # Run the 'icalcs' command to:
+        # - Remove inherited permissions ("/inheritance:r")
+        # - Grant only the current user full control ("/grant:r")
+        # - Remove broad access groups like 'Users' or 'Everyone'
+        subprocess.run(
+            ["icacls", str(path),
+             "/inheritance:r",
+             "/grant:r", f"{user}:F",
+             "/remove", "Users", "Authenticated Users", "Everyone"],
+            capture_output=True, # Prevents console spam
+            check=False          # Doesn't crash if the command fails
+        )
+    else:
+        # On macOS/Linux, set file permissions to 0600 (only owner can read/write)
+        path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+    except Exception:
+        # If anything fails (no permission, filesystem doesn’t support chmod), skip quietly so the program continues running
+        pass
 
 # Plots driving speed over time with both km/h (left axis) and mph (right axis), highlighting high-speed points above set thresholds
 def plot_speed_dual_units(df: pd.DataFrame):
