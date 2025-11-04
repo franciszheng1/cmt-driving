@@ -194,6 +194,24 @@ def _last_log_hash() -> str:
         # If parsing fails, treat it like we're at the start to avoid crashing
         return "GENESIS"
 
+# Adds a new audit log record that includes a hash of the previous record (makes the log tamper-evident)
+def audit_event(event: str, details: dict):
+    # Grab the previous entry's hash to chain this new entry to the last one
+    prev_hash = _last_log_hash()
+    # Record the current UTC time in a standard, sortable string format
+    ts = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
+    # Turn the details into a stable JSON string so hashing is consistent
+    body = json.dumps(details, sort_keys=True)
+    # Build the exact bytes we will hash (previous hash + time + event + details)
+    entry_bytes = (prev_hash + ts + event + body).encode("utf-8")
+    # Create this entry's hash, which "locks" this line to the previous one
+    entry_hash = hashlib.sha256(entry_bytes).hexdigest()
+    # Prepare the JSON record that will be written to the log
+    record = {"ts": ts, "event": event, "details": details, "prev_hash": prev_hash, "entry_hash": entry_hash}
+    # Adds the record as a single JSON line at the end of the log file
+    with open(AUDIT_LOG, "a", encoding="utf-8" as f:
+        f.write(json.dumps(record) + "\n")
+
 # Plots driving speed over time with both km/h (left axis) and mph (right axis), highlighting high-speed points above set thresholds
 def plot_speed_dual_units(df: pd.DataFrame):
     # Create a new figure (12x6 inches) and the primary y-axis (left side)
