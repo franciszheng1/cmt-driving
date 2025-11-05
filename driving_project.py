@@ -19,7 +19,7 @@ matplotlib.use("MacOSX" if sys.platform == "darwin" else "TkAgg")
 import matplotlib.pyplot as plt
 
 # Global constants for units and thresholds
-KMH_TO_MPH = 0.621371 # conversation factor (km/h -> mph)
+KMH_TO_MPH = 0.621371 # conversion factor (km/h -> mph)
 HIGH_KMH = 120 # km/h threshold
 HIGH_MPH = 75 # mph threshold (approximately 120 km/h)
 AUDIT_LOG = Path("audit.log") # append-only audit log file (hash-chained)
@@ -104,7 +104,7 @@ def simulate_dataset() -> pd.DataFrame:
 
     # Map trip_id -> its starting offset, then add to per-trip time
     offset_map = {i + 1: offsets[i] for i in range(n_trips)}
-    data["lobal_time"] = data["time"] + data["trip_id"].map(offset_map)
+    data["global_time"] = data["time"] + data["trip_id"].map(offset_map)
 
     return data
 
@@ -210,7 +210,7 @@ def audit_event(event: str, details: dict):
     # Prepare the JSON record that will be written to the log
     record = {"ts": ts, "event": event, "details": details, "prev_hash": prev_hash, "entry_hash": entry_hash}
     # Adds the record as a single JSON line at the end of the log file
-    with open(AUDIT_LOG, "a", encoding="utf-8" as f:
+    with open(AUDIT_LOG, "a", encoding="utf-8") as f:
         f.write(json.dumps(record) + "\n")
 
 # Rebuilds the chain from start to finish to confirm no entries were edited or removed
@@ -273,24 +273,26 @@ def export_privacy_copy(df: pd.DataFrame, out_path: Path):
 def set_strict_perms(path: Path):
     try:
         if sys.platform == "win32":
-        # On Windows, find the current logged-in user name
-        user = getpass.getuser()
+            # On Windows, find the current logged-in username
+            user = getpass.getuser()
 
-        # Run the 'icalcs' command to:
+        # Run the 'icacls' command to:
         # - Remove inherited permissions ("/inheritance:r")
         # - Grant only the current user full control ("/grant:r")
         # - Remove broad access groups like 'Users' or 'Everyone'
-        subprocess.run(
-            ["icacls", str(path),
-             "/inheritance:r",
-             "/grant:r", f"{user}:F",
-             "/remove", "Users", "Authenticated Users", "Everyone"],
-            capture_output=True, # Prevents console spam
-            check=False          # Doesn't crash if the command fails
-        )
-    else:
-        # On macOS/Linux, set file permissions to 0600 (only owner can read/write)
-        path.chmod(stat.S_IRUSR | stat.S_IWUSR)
+            subprocess.run(
+        [
+                "icacls", str(path),
+                "/inheritance:r",
+                "/grant:r", f"{user}:F",
+                "/remove", "Users", "Authenticated Users", "Everyone"
+                ],
+                capture_output=True, # Prevents console spam
+                check=False          # Doesn't crash if the command fails
+            )
+        else:
+            # On macOS/Linux, set file permissions to 0600 (only owner can read/write)
+            path.chmod(stat.S_IRUSR | stat.S_IWUSR)
     except Exception:
         # If anything fails (no permission, filesystem doesn’t support chmod), skip quietly so the program continues running
         pass
@@ -299,38 +301,32 @@ def set_strict_perms(path: Path):
 def trip_kpis_and_score(df: pd.DataFrame) -> pd.DataFrame:
 
 # Prepare a list where we’ll collect one small results dict per trip
-rows = []
+    rows = []
 
-# Iterate over the data grouped by trip_id so we compute KPIs for each trip separately
-for tid, g in df.groupby("trip_id"):
+    # Iterate over the data grouped by trip_id so we compute KPIs for each trip separately
+    for tid, g in df.groupby("trip_id"):
 
-    # Compute the average speed in mph for this trip to reflect typical driving pace
-    avg_mph = float(g["speed_mph"].mean())
-
-    # Compute the maximum speed in mph for this trip to capture peak speed behavior
-    max_mph = float(g["speed_mph"].max())
-
-    # Count how many samples were at or above the “high speed” threshold (75 mph) as a simple speeding metric
-    secs_over = int((g["speed_mph"] >= HIGH_MPH).sum())
-
-    # Count how many samples indicate harsh braking (acceleration ≤ −3.0 m/s²) as a rough safety signal
-    harsh_brakes = int((g["acceleration"] <= -3.0).sum())
-
-    # Start from a perfect score (100) and subtract a small penalty for each speeding second and a larger penalty per harsh brake
-    score = 100 - secs_over * 0.2 - harsh_brakes * 2
-
-    # Clamp the score so it never goes below 0 or above 100 for clean presentation
-    score = max(0, min(100, score))
-
-    # Store this trip's KPIs and score in a compact dict (rounded for readability)
-    rows.append({
-        "trip_id": int(tid),                       # the trip number we summarized
-        "avg_speed_mph": round(avg_mph, 1),        # average speed to one decimal place
-        "max_speed_mph": round(max_mph, 1),        # maximum speed to one decimal place
-        "secs_over_75mph": secs_over,              # total samples at/over the threshold (≈ seconds)
-        "harsh_brakes": harsh_brakes,              # count of harsh braking events
-        "score_0_100": round(score, 1),            # final safety score on a 0–100 scale
-    })
+        # Compute the average speed in mph for this trip to reflect typical driving pace
+        avg_mph = float(g["speed_mph"].mean())
+        # Compute the maximum speed in mph for this trip to capture peak speed behavior
+        max_mph = float(g["speed_mph"].max())
+        # Count how many samples were at or above the “high speed” threshold (75 mph) as a simple speeding metric
+        secs_over = int((g["speed_mph"] >= HIGH_MPH).sum())
+        # Count how many samples indicate harsh braking (acceleration ≤ −3.0 m/s²) as a rough safety signal
+        harsh_brakes = int((g["acceleration"] <= -3.0).sum())
+        # Start from a perfect score (100) and subtract a small penalty for each speeding second and a larger penalty per harsh brake
+        score = 100 - secs_over * 0.2 - harsh_brakes * 2
+        # Clamp the score so it never goes below 0 or above 100 for clean presentation
+        score = max(0, min(100, score))
+        # Store this trip's KPIs and score in a compact dict (rounded for readability)
+        rows.append({
+            "trip_id": int(tid),                       # the trip number we summarized
+            "avg_speed_mph": round(avg_mph, 1),        # average speed to one decimal place
+            "max_speed_mph": round(max_mph, 1),        # maximum speed to one decimal place
+            "secs_over_75mph": secs_over,              # total samples at/over the threshold (≈ seconds)
+            "harsh_brakes": harsh_brakes,              # count of harsh braking events
+            "score_0_100": round(score, 1),            # final safety score on a 0–100 scale
+        })
 
     # Convert the list of per-trip dicts into a tidy DataFrame (one row per trip) and return it
     return pd.DataFrame(rows)
@@ -350,7 +346,7 @@ def plot_speed_dual_units(df: pd.DataFrame):
     ax_right = ax_left.twinx()
 
     # Plot speed in mph on the right y-axis (dashed to distinguish from km/h)
-    ax_right.plot(df["global_time"], df["speed_mph"], linestyle=""--"", label="Speed (mph)")
+    ax_right.plot(df["global_time"], df["speed_mph"], linestyle="--", label="Speed (mph)")
     ax_right.set_ylabel("Speed (mph)") # right y-axis label
 
     # Find rows where speed exceeds the high-speed thresholds (km/h and mph)
@@ -404,5 +400,11 @@ def plot_series(df: pd.DataFrame, column: str, ylabel: str, title: str):
     plt.tight_layout()
     plt.show(block=True)
 
+# Runs the whole project in a safe, logical order (auth -> simulate -> save/sign -> privacy export -> KPIs -> plots -> audit check)
+def main():
+    # Ask for a password so only authorized users can run the workflow
+    authenticate()
+    # Record that authentication succeeded in the tamper-evident audit log
+    audit_event("AUTH_OK", {})
 
-
+    #
