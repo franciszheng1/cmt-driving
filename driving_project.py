@@ -8,6 +8,8 @@ import pandas as pd             # for handling tabular data
 import numpy as np              # for random number generation
 import hashlib                  # for cybersecurity (hashing)
 import matplotlib               # for graphs and plots
+import shutil                   # copy/restore entire snapshot folders
+import getpass as gp            # username on Windows (gp.getuser)
 from pathlib import Path        # for path files
 from getpass import getpass     # for hidden password input (no echo)
 
@@ -15,14 +17,17 @@ from getpass import getpass     # for hidden password input (no echo)
 # "MacOSX" -> macOS pop-up, "TkAgg" -> Windows/Linux
 matplotlib.use("MacOSX" if sys.platform == "darwin" else "TkAgg")
 
-# Import pyplot after choosing the backend
+# Import pyplot after choosing the backend, plotting API
 import matplotlib.pyplot as plt
 
 # Global constants for units and thresholds
 KMH_TO_MPH = 0.621371 # conversion factor (km/h -> mph)
 HIGH_KMH = 120 # km/h threshold
 HIGH_MPH = 75 # mph threshold (approximately 120 km/h)
+RUNS_DIR = Path("runs") # where each run’s files live
+CURRENT_DIR = Path("current") # restore destination
 AUDIT_LOG = Path("audit.log") # append-only audit log file (hash-chained)
+RUNS_DIR.mkdir(exist_ok=True) # ensure base folder exists
 
 # Define a function named 'authenticate' that checks the user's password
 # The default correct password is set to "secure123"
@@ -155,8 +160,8 @@ def load_or_generate_secret_key() -> bytes:
             # If the value isn't valid hex, ignore it and fall back to a random key below
             pass
 
-        # If no valid env key is available, create a new random 32-byte key (for this run only)
-        return os.urandom(32)
+    # If no valid env key is available, create a new random 32-byte key (for this run only)
+    return os.urandom(32)
 
 # Creates a unique Base64 HMAC-SHA256 signature for a file using a secret key to prove the file's authenticity and integrity
 def hmac_sha256_file(path: Path, key: bytes) -> str:
