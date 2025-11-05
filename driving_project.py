@@ -295,6 +295,46 @@ def set_strict_perms(path: Path):
         # If anything fails (no permission, filesystem doesn’t support chmod), skip quietly so the program continues running
         pass
 
+# Builds a per-trip summary table with core KPIs and a simple 0-100 safety score derived from speeding and harsh braking
+def trip_kpis_and_score(df: pd.DataFrame) -> pd.DataFrame:
+
+# Prepare a list where we’ll collect one small results dict per trip
+rows = []
+
+# Iterate over the data grouped by trip_id so we compute KPIs for each trip separately
+for tid, g in df.groupby("trip_id"):
+
+    # Compute the average speed in mph for this trip to reflect typical driving pace
+    avg_mph = float(g["speed_mph"].mean())
+
+    # Compute the maximum speed in mph for this trip to capture peak speed behavior
+    max_mph = float(g["speed_mph"].max())
+
+    # Count how many samples were at or above the “high speed” threshold (75 mph) as a simple speeding metric
+    secs_over = int((g["speed_mph"] >= HIGH_MPH).sum())
+
+    # Count how many samples indicate harsh braking (acceleration ≤ −3.0 m/s²) as a rough safety signal
+    harsh_brakes = int((g["acceleration"] <= -3.0).sum())
+
+    # Start from a perfect score (100) and subtract a small penalty for each speeding second and a larger penalty per harsh brake
+    score = 100 - secs_over * 0.2 - harsh_brakes * 2
+
+    # Clamp the score so it never goes below 0 or above 100 for clean presentation
+    score = max(0, min(100, score))
+
+    # Store this trip's KPIs and score in a compact dict (rounded for readability)
+    rows.append({
+        "trip_id": int(tid),                       # the trip number we summarized
+        "avg_speed_mph": round(avg_mph, 1),        # average speed to one decimal place
+        "max_speed_mph": round(max_mph, 1),        # maximum speed to one decimal place
+        "secs_over_75mph": secs_over,              # total samples at/over the threshold (≈ seconds)
+        "harsh_brakes": harsh_brakes,              # count of harsh braking events
+        "score_0_100": round(score, 1),            # final safety score on a 0–100 scale
+    })
+
+    # Convert the list of per-trip dicts into a tidy DataFrame (one row per trip) and return it
+    return pd.DataFrame(rows)
+
 # Plots driving speed over time with both km/h (left axis) and mph (right axis), highlighting high-speed points above set thresholds
 def plot_speed_dual_units(df: pd.DataFrame):
     # Create a new figure (12x6 inches) and the primary y-axis (left side)
