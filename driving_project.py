@@ -407,4 +407,76 @@ def main():
     # Record that authentication succeeded in the tamper-evident audit log
     audit_event("AUTH_OK", {})
 
-    #
+    # Create a brand-new random dataset of several trips (city/highway) with speed/acceleration/tilt
+    data = simulate_dataset()
+    # Log what we generated so we can trace when and how many rows were created
+    audit_event("SIMULATED", {"trips": int(data["trip_id"].nunique()), "rows": int(len(data))})
+
+    # Save the raw dataset to CSV and print a SHA-256 fingerprint so future changes are detectable
+    csv_path = Path("driving_data.csv")
+    save_with_hash(data, csv_path)
+    # Lock down the raw CSV so only the current user can read/write it
+    set_strict_perms(csv_path)
+    # Log that the raw CSV was written and where
+    audit_event("RAW_CSV_WRITTEN", {"path": str(csv_path), "rows": int(len(data))})
+
+    # Get a secret signing key (from env if set, otherwise random) and compute an HMAC signature of the CSV
+    key = load_or_generate_secret_key()
+    sig_b64 = hmac_sha256_file(csv_path, key)
+    # Store the signature in a separate file next to the CSV for later verification
+    sig_path = Path("driving_data.sig")
+    sig_path.write_text(sig_b64, encoding="utf-8")
+    # Lock down the signature file for least-privilege access
+    set_strict_perms(sig_path)
+    # Tell the user where we saved the signature for transparency
+    print("HMAC-SHA256 signature written to:", sig_path)
+    # Log that the raw CSV was signed (authenticity)
+    audit_event("RAW_CSV_SIGNED", {"sig_path": str(sig_path)})
+
+    # Immediately verify the signature to demonstrate authenticity checking
+    ok = verify_hmac_file(csv_path, sig_b64, key)
+    # Print whether the signature matched so the user sees a quick integrity/auth result
+    print("Signature verification:", "VALID ✅" if ok else "INVALID ❌")
+    # Log the verification outcome so it’s captured in the audit trail
+    audit_event("SIGNATURE_VERIFIED", {"ok": bool(ok)})
+
+    # Create a privacy-safe CSV that hides exact timing and slightly blurs speeds for safe sharing
+    public_path = Path("driving_data_public.csv")
+    export_privacy_copy(data, public_path)
+    # Lock down the privacy export too (still practice less privilege)
+    set_strict_perms(public_path)
+    # Log that the privacy export was created and where it lives
+    audit_event("PRIVACY_EXPORT_WRITTEN", {"path": str(public_path)})
+
+    # Turn the raw signals into useful per-trip KPIs and a simple 0-100 safety score
+    summary = trip_kpis_and_score(data)
+    # Save the trip summary so it can be viewed or shared internally
+    summary_path = Path("driving_data_summary.csv")
+    summary.to_csv(summary_path, index=False)
+    # Lock down the summary file to prevent unwanted access
+    set_strict_perms(summary_path)
+    # Log that the KPIs file was written and how many trips it covers
+    audit_event("KPIS_WRITTEN", {"path": str(summary_path), "trips": int(len(summary))})
+    # Tell the user where the KPIs were saved
+    print("Trip KPIs saved:", summary_path)
+
+    # Show plots so we can visually sanity-check speeds, acceleration, and tilt
+    plot_speed_dual_units(data)
+    plot_series(data, "acceleration", "Acceleration (m/s²)", "Driving Acceleration Over Time")
+    plot_series(data, "tilt", "Tilt (degrees)", "Phone Tilt During Driving")
+    # Log that we displayed plots for traceability
+    audit_event("PLOTS_SHOWN", {"count": 3})
+
+    # Simulate the “ready to send over HTTPS” step to reflect a real secure pipeline
+    print("\nSimulating secure transmission over HTTPS...")
+    print("Data ready to send securely!")
+    # Log that the data is ready for secure transmission
+    audit_event("READY_TO_TRANSMIT", {})
+
+    # Recompute the entire hash chain to prove the audit log wasn’t edited
+    verify_audit_log()
+
+# Only run main() when this file is executed directly (not when it’s imported by another script)
+if __name__ == "__main__":
+    main()
+
