@@ -417,6 +417,23 @@ def _get_snapshots() -> list[Path]:
     # Hand back the ordered list of snapshot directories
     return runs
 
+# Prints a simple table showing index, run folder name, and files inside each snapshot
+def list_snapshots():
+    # Fetch all snapshot directories in newest-first order
+    runs = _get_snapshots()
+    # If none exist, tell the user and stop
+    if not runs:
+        print("No snapshots found in 'runs/'.")
+        return
+    # Print a fixed-width header for readability
+    print(f"{'Idx':>3}  {'Run Folder':<20}  Files")
+    # Print a separator line under the header
+    print("-" * 60)
+    # For each run, list its index, folder name, and a comma-separated file list
+    for i, r in enumerate(runs):
+        files = [p.name for p in r.iterdir()]
+        print(f"{i:>3}  {r.name:<20}  {', '.join(files)}")
+
 # Runs the whole project in a safe, logical order (auth -> simulate -> save/sign -> privacy export -> KPIs -> plots -> audit check)
 def main():
     # Ask for a password so only authorized users can run the workflow
