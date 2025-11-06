@@ -20,7 +20,7 @@ matplotlib.use("MacOSX" if sys.platform == "darwin" else "TkAgg")
 # Import pyplot after choosing the backend, plotting API
 import matplotlib.pyplot as plt
 
-# Global constants for units and thresholds
+# Global constants for units, thresholds, locations
 KMH_TO_MPH = 0.621371 # conversion factor (km/h -> mph)
 HIGH_KMH = 120 # km/h threshold
 HIGH_MPH = 75 # mph threshold (approximately 120 km/h)
@@ -45,12 +45,12 @@ def authenticate(secret="secure123"):
     print("Access granted!\n")
 
 # Define a function that will generate one stimulated driving trip
-def simulate_trip(trip_type = 'city', min_seconds=30, max_seconds=180):
+def simulate_trip(trip_type='city', min_seconds=30, max_seconds=180):
     # Chooses a random trip length (between 30-180 seconds)
     duration = np.random.randint(min_seconds, max_seconds)
 
     # Create a time column: 0, 1, 2, ... up to duration
-    time = np.arange(duration)
+    time_s = np.arange(duration)
 
     # Depending on the type of trip, generate different driving patterns
     if trip_type == "city": # use == for comparison
@@ -69,7 +69,7 @@ def simulate_trip(trip_type = 'city', min_seconds=30, max_seconds=180):
 
     # Returns a table (DataFrame) with all columns
     return pd.DataFrame({
-        "time": time,                   # seconds within this trip
+        "time": time_s,                   # seconds within this trip
         "trip_type": trip_type,         # "city" or "highway"
         "speed_kmh": speed_kmh,         # speed in km/h
         "speed_mph": speed_mph,         # speed in mph
@@ -277,9 +277,9 @@ def export_privacy_copy(df: pd.DataFrame, out_path: Path):
 # Restricts a file’s access so only the current user can read and write it (uses chmod 0600 on Mac/Linux, and icacls on Windows)
 def set_strict_perms(path: Path):
     try:
-        if sys.platform == "win32":
+        if sys.platform.startswith("win"):
             # On Windows, find the current logged-in username
-            user = getpass.getuser()
+            user = gp.getuser()
 
         # Run the 'icacls' command to:
         # - Remove inherited permissions ("/inheritance:r")
@@ -290,10 +290,10 @@ def set_strict_perms(path: Path):
                 "icacls", str(path),
                 "/inheritance:r",
                 "/grant:r", f"{user}:F",
-                "/remove", "Users", "Authenticated Users", "Everyone"
+                "/remove", "Users", "Authenticated Users", "Everyone",
                 ],
                 capture_output=True, # Prevents console spam
-                check=False          # Doesn't crash if the command fails
+                check=False,         # Doesn't crash if the command fails
             )
         else:
             # On macOS/Linux, set file permissions to 0600 (only owner can read/write)
@@ -404,6 +404,18 @@ def plot_series(df: pd.DataFrame, column: str, ylabel: str, title: str):
     # Adjust layout and display the plot window (blocks until closed)
     plt.tight_layout()
     plt.show(block=True)
+
+# Returns run folders sorted newest-first by their timestamped names
+def _get_snapshots() -> list[Path]:
+    # If the base runs/ directory doesn't exist, there are no snapshots
+    if not RUNS_DIR.exists():
+        return []
+    # Collect only subdirectories inside runs/ because each run is a folder
+    runs = [p for p in RUNS_DIR.iterdir() if p.is_dir()]
+    # Sort by folder name descending so lexicographic timestamps put newest first
+    runs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    # Hand back the ordered list of snapshot directories
+    return runs
 
 # Runs the whole project in a safe, logical order (auth -> simulate -> save/sign -> privacy export -> KPIs -> plots -> audit check)
 def main():
