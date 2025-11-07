@@ -434,6 +434,28 @@ def list_snapshots():
         files = [p.name for p in r.iterdir()]
         print(f"{i:>3}  {r.name:<20}  {', '.join(files)}")
 
+# Resolves a user-supplied selector to an actual run folder path
+def _select_snapshot(selector: str | int | None) -> Path | None;
+    # Load the available snapshots in newest-first order
+    runs = _get_snapshots()
+    # If there are no snapshots, nothing can be selected
+    if not runs:
+        return None
+    # Treat None or the string "latest" as a request for the newest snapshot
+    if selector in (None, "latest"):
+        return runs[0]
+    # If selector is an integer (or a numeric string), treat it as an index
+    if isinstance(selector, int) or (isinstance(selector, str) and selector.isdigit()):
+        idx = int(selector)
+        # Return the run at that index if it is within range, else NONE
+        return runs[idx] if 0 <= idx < len(runs) else None
+    # Otherwise match by timestamp prefix
+    for r in runs:
+        if r.name.startswith(str(selector)):
+            return r
+    # If nothing matched, indicate failure with None
+        return None
+
 # Runs the whole project in a safe, logical order (auth -> simulate -> save/sign -> privacy export -> KPIs -> plots -> audit check)
 def main():
     # Ask for a password so only authorized users can run the workflow
