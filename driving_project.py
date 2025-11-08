@@ -456,6 +456,66 @@ def _select_snapshot(selector: str | int | None) -> Path | None;
     # If nothing matched, indicate failure with None
         return None
 
+# Verifies a chosen snapshot's CSV integrity and audit-log chain, printing results
+def verify_snapshot(selector: str | int = "latest") -> bool:
+    # Resolve the selector to a concrete run folder
+    run = _select_snapshot(selector)
+    # If no run matches, report and fail
+    if not run:
+        print("Snapshot not found.")
+        return False
+    # Define key file paths within the snapshot
+    meta_path = run / "run_meta.json"
+    csv_path = run / "driving_data.csv"
+    audit_path = run / "audit.log"
+
+    # Track overall verification status starting as good
+    ok = True
+
+    # Require both the metadata and raw CSV to exist for verification to proceed
+    if not meta_path.exists() or not csv_path.exists():
+        print("Snapshot missing required files.")
+        return False
+
+    # Load stored metadata describing the snapshot
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+
+    # Recompute the CSV's SHA-256 to detect any modification
+    actual_sha = sha256_file(csv_path)
+
+    # Compare stored hash to actual hash and report mismatch or success
+    if meta.get("csv_sha256") != actual_sha:
+        print("CSV SHA-256 mismatch! (file was changed)")
+        ok = False
+    else:
+        print("CSV SHA-256 matches ✅")
+
+    # Next, verify the audit log's hash chain integrity if present
+    if not audit_path.exists():
+        print("Audit log missing.")
+        ok = False
+    else:
+        # Temporarily point the global AUDIT_LOG to this snapshot's log for reuse
+        global AUDIT_LOG
+        old = AUDIT_LOG
+        AUDIT_LOG = audit_path
+
+        # Run the chain verification and combine with current status
+        ok = verify_audit_log() and ok
+
+        # Restore the original global AUDIT_LOG path afterward
+        AUDIT_LOG = old
+
+    # Note that HMAC cannot be re-verified unless the original secret key is available
+    # Print a final verdict message specific to the snapshot folder
+    if ok:
+        print(f"Snapshot '{run.name}' verified OK.")
+    else:
+        print(f"Snapshot '{run.name}' failed verification.")
+
+    # Return the boolean verification result to the caller
+    return ok
+
 # Runs the whole project in a safe, logical order (auth -> simulate -> save/sign -> privacy export -> KPIs -> plots -> audit check)
 def main():
     # Ask for a password so only authorized users can run the workflow
