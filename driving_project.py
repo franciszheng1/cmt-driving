@@ -516,6 +516,38 @@ def verify_snapshot(selector: str | int = "latest") -> bool:
     # Return the boolean verification result to the caller
     return ok
 
+# Copies all files from a chosen snapshot into current/ for quick inspection or use
+def restore_snapshot(selector: str | int = "latest", overwrite: bool = False):
+    # Resolve which snapshot should be restored
+    run = _select_snapshot(selector)
+    # If the snapshot cannot be found, bail out with a message
+    if not run:
+        print("Snapshot not found.")
+        return
+
+    # Optionally wipe the existing current/ directory to avoid stale files
+    if CURRENT_DIR.exists() and overwrite:
+        shutil.rmtree(CURRENT_DIR)
+
+    # Ensure current/ exists so we have a destination for the copy
+    CURRENT_DIR.mkdir(exist_ok=True)
+
+    # Copy each item from the snapshot, preserving files and replacing dirs cleanly
+    for p in run.iterdir():
+        dst = CURRENT_DIR / p.name
+        if p.is_file():
+            # Copy regular files with metadata (timestamps and permissions) where possible
+            shutil.copy2(p, dst)
+        elif p.is_dir():
+            # Replace any existing destination directory before copying a fresh tree
+            if dst.exists():
+                shutil.rmtree(dst)
+            shutil.copytree(p, dst)
+
+    # Confirm to the user which snapshot was restored and where it went
+    print(f"Restored snapshot '{run.name}' to '{CURRENT_DIR}/'")
+
+
 # Runs the whole project in a safe, logical order (auth -> simulate -> save/sign -> privacy export -> KPIs -> plots -> audit check)
 def main():
     # Ask for a password so only authorized users can run the workflow
