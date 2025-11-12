@@ -547,6 +547,13 @@ def restore_snapshot(selector: str | int = "latest", overwrite: bool = False):
     # Confirm to the user which snapshot was restored and where it went
     print(f"Restored snapshot '{run.name}' to '{CURRENT_DIR}/'")
 
+# Runs one secure cycle and saves everything inside a unique timestamp folder
+def run_pipeline():
+    authenticate()
+    # Makes a unique run folder
+    run_ts = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
+    run_dir = RUNS_DIR / run_ts
+    run_dir.mkdir(parents=True, exist_ok=False)
 
 # Runs the whole project in a safe, logical order (auth -> simulate -> save/sign -> privacy export -> KPIs -> plots -> audit check)
 def main():
