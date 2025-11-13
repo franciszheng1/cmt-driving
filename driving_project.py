@@ -555,6 +555,21 @@ def run_pipeline():
     run_dir = RUNS_DIR / run_ts
     run_dir.mkdir(parents=True, exist_ok=False)
 
+    # Moves this run's audit log into the run folder
+    global AUDIT_LOG
+    AUDIT_LOG = run_dir / "audit.log"
+    audit_event("AUTH_OK", {})
+
+    # Generate data
+    data = simulate_dataset()
+    audit_event("SIMULATED", {"trips": int(data["trip_id"].nunique()), "rows": int(len(data))})
+
+    # Save raw CSV
+    csv_path = run_dir / "driving_data.csv"
+    save_with_hash(data, csv_path)
+    set_strict_perms(csv_path)
+    audit_event("RAW_CSV_WRITTEN", {"path": str(csv_path), "rows": int(len(data))})
+
 # Runs the whole project in a safe, logical order (auth -> simulate -> save/sign -> privacy export -> KPIs -> plots -> audit check)
 def main():
     # Ask for a password so only authorized users can run the workflow
