@@ -570,6 +570,27 @@ def run_pipeline():
     set_strict_perms(csv_path)
     audit_event("RAW_CSV_WRITTEN", {"path": str(csv_path), "rows": int(len(data))})
 
+    # HMAC signature (without a stable env key you can't re-verify later)
+    key = load_or_generate_secret_key()
+    sig_b64 = hmac_sha256_file(csv_path, key)
+    sig_path = run_dir / "driving_data.sig"
+    sig_path.write_text(sig_b64, encoding="utf-8")
+    set_strict_perms(sig_path)
+    print("HMAC-SHA256 signature written to:", sig_path)
+    audit_event("RAW_CSV_SIGNED", {"sig_path": str(sig_path)})
+
+    # Immediate self-check
+    ok = verify_hmac_file(csv_path, sig_b64, key)
+    print("Signature verification:", "VALID ✅" if ok else "INVALID ❌")
+    audit_event("RAW_CSV_SIGNED", {"sig_path": str(sig_path)})
+
+    # Privacy export
+    public_path = run_dir / "driving_data_public.csv"
+    export_privacy_copy(data, public_path)
+    set_strict_perms(public_path)
+    audit_event("PRIVACY_EXPORT_WRITTEN", {"path": str(public_path)})
+
+
 # Runs the whole project in a safe, logical order (auth -> simulate -> save/sign -> privacy export -> KPIs -> plots -> audit check)
 def main():
     # Ask for a password so only authorized users can run the workflow
