@@ -590,6 +590,14 @@ def run_pipeline():
     set_strict_perms(public_path)
     audit_event("PRIVACY_EXPORT_WRITTEN", {"path": str(public_path)})
 
+    # KPIs
+    summary = trip_kpis_and_score(data)
+    summary_path = run_dir / "driving_data_summary.csv"
+    summary.to_csv(summary_path, index=False)
+    set_strict_perms(summary_path)
+    print("Trip KPIS saved:", summary_path)
+    audit_event("KPIS_WRITTEN", {"path": str(summary_path), "trips": int(len(summary))})
+
 
 # Runs the whole project in a safe, logical order (auth -> simulate -> save/sign -> privacy export -> KPIs -> plots -> audit check)
 def main():
