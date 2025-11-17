@@ -598,6 +598,11 @@ def run_pipeline():
     print("Trip KPIS saved:", summary_path)
     audit_event("KPIS_WRITTEN", {"path": str(summary_path), "trips": int(len(summary))})
 
+    # Plots (close window to continue)
+    plot_speed_dual_units(data)
+    plot_series(data, "acceleration", "Acceleration (m/s^2)", "Driving Acceleration Over Time")
+    plot_series(data, "tilt", "Tilt (degrees)", "Phone Tilt During Driving")
+    audit_event("PLOTS_SHOWN", {"count": 3})
 
 # Runs the whole project in a safe, logical order (auth -> simulate -> save/sign -> privacy export -> KPIs -> plots -> audit check)
 def main():
